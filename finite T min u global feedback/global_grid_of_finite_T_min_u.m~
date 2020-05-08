@@ -16,8 +16,8 @@ tic
 toc
 %%
 % x0 = [-2.4;3]; T=5
-x0 = [-2;3]; %T=3
-% x0 = [-1.25189390985363;1.54007819071531];
+% x0 = [-2;3]; T=3
+x0 = [-1.25189390985363;1.54007819071531];
 x_target = [0;0];
 T = 4;    %5-64*0.01; %3-36*0.01;
 dt = 0.01;
@@ -83,7 +83,7 @@ data = [x0(1) x0(2) T norm(u) norm(x_target-x) iter2];
 formatSpec = '(%.2f;%.2f); T = %.2f; U = %.4f; xn-xf = %.4f;  --> %.0f;\n';
 fprintf(formatSpec, data)    
 
-Fig = openfig('vanderpol.fig');
+% Fig = openfig('vanderpol.fig');
 axis equal
 hold on 
 grid on
