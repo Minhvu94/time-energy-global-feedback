@@ -15,7 +15,7 @@ p = 6;
 
 %% Part 1:
 dt = 0.01;
-T = 0.5;
+T = 2;
 iter_max = ceil(T/dt);
 
 % x0 = [2;-3]; % for vanderpol1: [-0.00772105272954248;-3.15798353408161]; [-2.22589498649188;-0.623240650204037]; [-1.68115398300972;0.720565630180224]
@@ -64,9 +64,9 @@ step2_current_traj = plot([x0(1),x_traj(1,:)],[x0(2),x_traj(2,:)],'k','LineWidth
 u = u1;
 T = dt*ones(iter_max,1);
 %%
-mu = 2000;
+mu = 100;
 
-for iter2 = 1:10000
+for iter2 = 1:3000
        
     x = x0;    
     x_traj = [];
@@ -86,8 +86,8 @@ for iter2 = 1:10000
         x_traj = [x_traj x];         
     end
 
-    data = [norm(u), sum(T), norm(u)^2+sum(T), norm(x-x_target), iter2];
-    formatSpec = 'U = %.4f; T = %.3f; cost = %.4f; target = %.4f; --> %.0f;\n';
+    data = [norm(u), sum(T), norm(x-x_target), iter2];
+    formatSpec = 'U = %.4f; T = %.3f; cost = %.4f; --> %.0f;\n';
     fprintf(formatSpec, data)
     
 %     figure(1)
@@ -109,7 +109,7 @@ for iter2 = 1:10000
     H = [Hu,Ht];
 
     options = optimset('display','off');
-    du_and_dt = quadprog( blkdiag((1+mu)*eye(iter_max),mu*eye(iter_max)), [u',ones(1,iter_max)], [zeros(iter_max),-1*eye(iter_max)], T, H, x_target-x,[],[],[],options);
+    du_and_dt = quadprog( blkdiag((0.001+mu)*eye(iter_max),mu*eye(iter_max)), [0.001*u',ones(1,iter_max)], [zeros(iter_max),-1*eye(iter_max)], T, H, x_target-x,[],[],[],options);
     u = u + du_and_dt(1:iter_max);
     T = T + du_and_dt(iter_max+1:end);
     
