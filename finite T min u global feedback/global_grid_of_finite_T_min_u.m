@@ -16,7 +16,7 @@ tic
 toc
 %%
 % x0 = [-2.4;3]; T=5
-x0 = [-2;3]; %T=3
+x0 = [-3;3]; %T=3  
 % x0 = [-1.25189390985363;1.54007819071531];
 x_target = [0;0];
 T = 4;    %5-64*0.01; %3-36*0.01;
@@ -46,11 +46,12 @@ while true
     for iter = 2:iter_max
         H = [R_store{iter}*H, B_store{iter}];
     end
-    u = u - (H'*H+0.01*error^2*eye(iter_max))\(H'*(x-x_target));
+    u = u - (H'*H+0.001*error^2*eye(iter_max))\(H'*(x-x_target));
 end 
+
 old_cost = norm(u);
 mu = 5;
-for iter2 = 1:100       
+for iter2 = 1:500       
     x = x0;    
     x_traj = [];
     for iter = 1:iter_max
@@ -65,7 +66,7 @@ for iter2 = 1:100
         x = x(1:2);
         x_traj = [x_traj x];         
     end
-%     [norm(x_target-x) norm(u)]
+    [norm(x_target-x) norm(u)]
     % create H:
     H = B_store{1};
     for iter = 2:iter_max
@@ -87,5 +88,5 @@ Fig = openfig('vanderpol.fig');
 axis equal
 hold on 
 grid on
-step2_current_traj = scatter([x0(1),x_traj(1,:)],[x0(2),x_traj(2,:)],10,'g','filled');
+step2_current_traj = scatter([x0(1),x_traj(1,:)],[x0(2),x_traj(2,:)],10,'r','filled');
 % delete(step2_current_traj)

@@ -1,0 +1,179 @@
+clear
+clc
+close all
+syms xi1 xi2 xi3 dt
+
+F = [xi2;
+     -xi1+xi2-xi1^2*xi2+xi3;
+      0];
+  
+F = simplify(F);
+     
+p = 6;
+[Phi,Psi_p,JPhi,dPhi_dh_syms] = compute_Phi_and_JPhi2(p,F,[xi1 xi2 xi3],dt);
+
+%% Part 1:
+tic
+dt = 0.01;
+T = 5;
+iter_max = ceil(T/dt);
+x0 = [-2;3];
+% U = 14.3139; dt = 0.0135; T = 6.754; --> cost = U^2*dt = 2.7674;
+% x0 =[2.23103861768350;-0.335208032807801];
+% U = 13.2340; dt = 0.0158; T = 4.740; --> cost = U^2*dt = 2.7674; +2.5398e-05
+% x0 = [1.44230719180668;-0.718626135410870]; 
+% U = 13.2340; dt = 0.0158; T = 4.740; --> cost = U^2*dt = 2.6915; +0.0759 
+
+x_target = [0;0];
+u = zeros(iter_max,1); 
+while true
+    x = x0;
+    x_traj = [];
+
+    for iter = 1:iter_max
+        % Prepare A,B to later calculate H
+        R_big = JPhi(dt,x(1),x(2),u(iter));        
+        A_store{iter} = R_big(1:2,1:2);       % A in Ax+Bu 
+        B_store{iter} = R_big(1:2,3:3);       % B in Ax+Bu
+
+        % The actual trajectory using adaptive step size mechanism
+        [~, x_trajJ_fine] = adaptive_taylor(p,Phi,Psi_p,[0 dt],[x;u(iter)]); 
+        x = x_trajJ_fine(end,:)'; % the end of this sequence is x[k+1]
+        x = x(1:2);
+        x_traj = [x_traj x];      
+    end
+    
+    error = norm(x-x_target);
+    if error <= 0.0001
+        break
+    end
+    % Calculate H
+    H = B_store{1};
+    for iter = 2:iter_max
+        H = [A_store{iter}*H, B_store{iter}];
+    end
+    u = u - (H'*H+0.01*error^2*eye(iter_max))\(H'*(x-x_target));
+end 
+display('done1')
+u1 = u;
+
+% Part 2:
+% Fig = openfig('vanderpol.fig');
+% axis equal
+% hold on 
+% grid on
+% step2_current_traj = scatter([x0(1),x_traj(1,:)],[x0(2),x_traj(2,:)],10,'k','filled');
+%
+% u = u1;
+dt_max = 0.04;
+mu1 = 50;
+mu2 = 0;
+
+old_cost = norm(u)^2*dt + 1;
+
+for iter2 = 1:10000      
+    x = x0;    
+    x_traj = [];
+    for iter = 1:iter_max
+        % Prepare A,B to later calculate H
+        R_big = JPhi(dt,x(1),x(2),u(iter));  
+        S_big = dPhi_dh_syms(dt,x(1),x(2),u(iter));
+        % A, B, C in  Adx + Bdu + Cdt 
+        A_store{iter} = R_big(1:2,1:2);       
+        B_store{iter} = R_big(1:2,3:3);      
+        C_store{iter} = S_big(1:2);
+        % The actual trajectory using adaptive step size mechanism
+        [~, x_trajJ_fine] = adaptive_taylor(p,Phi,Psi_p,[0 dt],[x;u(iter)]); 
+        x = x_trajJ_fine(end,:)'; % the end of this sequence is x[k+1]
+        x = x(1:2);
+        x_traj = [x_traj x];         
+    end
+    
+    improve = old_cost - norm(u)^2*dt;
+    if iter2>1
+        data = [norm(u), dt, du_and_ddt(end), dt*iter_max, norm(x-x_target), old_cost, improve, iter2];
+        formatSpec = 'U = %.4f; dt = %.4f; ddt = %.6f; T = %.3f; xn-xf = %.4f; cost = %.4f; improve = %.12f; --> %.0f;\n';
+        fprintf(formatSpec, data)
+    end
+    if improve < 1e-3
+        mu1=1;mu2=0;
+    end
+%     if improve < 1e-6
+%         mu1=0.1;mu2=0;
+%     end
+    if  norm(x-x_target) > 0.0050
+        mu1=100;mu2=0;
+    end
+    if  norm(x-x_target) > 0.0070
+        mu1=1000;mu2=0;
+    end
+    if improve < 1e-7 || norm(x-x_target)>0.01
+        break
+    end
+    old_cost = norm(u)^2*dt;
+    
+%     delete(step2_current_traj);
+% %     step2_current_traj = plot([x0(1),x_traj(1,:)],[x0(2),x_traj(2,:)],'k','LineWidth',2);
+%     step2_current_traj = scatter([x0(1),x_traj(1,:)],[x0(2),x_traj(2,:)],10,'r','filled');
+%     drawnow 
+
+    % create H:
+    Hu = B_store{1};
+    Ht = C_store{1};
+    for iter = 2:iter_max
+        Hu = [A_store{iter}*Hu, B_store{iter}];  
+        Ht = [A_store{iter}*Ht, C_store{iter}]; 
+    end
+    H = [Hu,Ht*ones(iter_max,1)];
+
+    options = optimset('display','off');
+    du_and_ddt = quadprog( blkdiag((mu1)*eye(iter_max),mu2), [2*dt*u',norm(u)^2], [zeros(2,iter_max),[1;-1]], [dt_max-dt;dt], H, x_target-x,[],[],[],options);
+    u = u + du_and_ddt(1:iter_max);
+    dt = dt + du_and_ddt(end);
+end
+display('done2')
+% u_optimal = u;
+% T_optimal = T;
+% trajectory_optimal = x_traj;
+toc 
+
+
+function [Phi,Psi_p,JPhi,dPhi_dh_syms] = compute_Phi_and_JPhi2(p,F,xi,h)
+Id = [];
+
+for i = 1:length(xi)
+    Id = [Id; xi(i)];
+end
+
+Psi = Id;             % [xi1; xi2; xi3; xi4; xi5] 
+J = eye(length(xi));  % Identity 
+
+Phi_syms = Psi;       % [xi1; xi2; xi3; xi4; xi5] 
+JPhi_syms = J;        % Identity 
+dPhi_dh_syms = 0*Psi;
+
+for k_deg = 1:p
+    tic
+    Psi = J*F;
+    Psi = simplify(Psi); % Calculate Psi from eq(1)
+    
+    J = jacobian(Psi,xi);
+    J = simplify(J);   % Jacobian of Psi
+    
+    % Taylor approxi. of the flow (discretization purpose)
+    Phi_syms = Phi_syms + (h^k_deg/factorial(k_deg))*Psi;
+    % Taylor approxi. of the jacobian of flow (linearization purpose)
+    JPhi_syms = JPhi_syms + (h^k_deg/factorial(k_deg))*J;
+    % Partial flow/ partial h
+    dPhi_dh_syms = dPhi_dh_syms + (h^(k_deg-1)/factorial(k_deg-1))*Psi;
+    toc
+end
+% Turn symbolic expressions into functions 
+Phi = matlabFunction(simplify(Phi_syms),'Vars',[h xi]);   % The flow 
+Psi_p = matlabFunction(simplify(Psi),'Vars',xi);          % The last Psi 
+JPhi = matlabFunction(simplify(JPhi_syms),'Vars',[h xi]); % Jacobian of the flow
+dPhi_dh_syms = matlabFunction(simplify(dPhi_dh_syms),'Vars',[h xi]); % Temporal sensitivity of the flow
+end
+
+
+
